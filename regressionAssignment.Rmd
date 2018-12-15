@@ -1,0 +1,138 @@
+---
+title: "Analysis of relationship between cars' fuel efficiency and transmission type"
+author: "Nadia Chylak"
+output:
+  html_document:
+    keep_md: yes
+  word_document: default
+---
+
+## Executive summary
+
+Based on cars data extracted from the 1974 Motor Trend US magazine, the following paper will give an attempt at analysing whether automatic or manual transmissions are better for fuel efficiency as well as trying to quantify fuel efficiency differences between automatic and manual transmissions.
+
+Based on the sample at hand, we will demonstrate that there may indeed be a relationship between fuel efficiency and type of transmission, pointing towards manual cars being more fuel efficient.
+
+## Exploratory data analysis
+
+```{r, echo=FALSE}
+library(datasets)
+data("mtcars")
+```
+
+The `mtcars` data set is data frame with 32 observations on 11 variables, of which the following are particularly interesting to this paper:
+
+* `mpg`: miles per gallon
+* `wt`: weight in 1,000 lbs
+* `cyl`: number of cylinders
+* `disp`: displacement in cubic inches
+* `qsec`: quarter mile time in seconds
+* `am`: transmission (0 for automatic and 1 for manual).
+
+If we plot a heatmap of variable absolute correlations (see **Figure 1**), we see that fuel efficiency (`mpg`) seems to be highly correlated to weight (`wt`), number of cylinders (`cyl`) and displacement (`disp`) but does not seems to be higly correlated with transmission (`am`).
+
+In our case, we are however interested to know to what extent `mpg` and `am` are related and thus isolate these two variables to visualise them in a boxplot (see **Figure 2**). In this plot, we see that, for our sample, the mean of `mpg` for automatic transmissions is `r round(mean(mtcars[,"mpg"][mtcars$am == 0]),2)` whereas the mean of `mpg` for manual transmissions is `r round(mean(mtcars[,"mpg"][mtcars$am == 1]),2)`. This may be an indicator of the fact that manual transmissions are more fuel efficient (higher `mpg` value) than automatic transmissions and so we will build a linear model containing `am` as regressor to test the following hypotheses: 
+
+* Null hypothesis (H<sub>0</sub>): There is no linear relationship between `mpg` and `am` ($\beta_{am} = 0$)
+* Alternative hypothesis (H<sub>a</sub>): There is a positive linear relationship between `mpg` and `am` ($\beta_{am} \neq 0$)
+
+## Model selection
+
+For selecting our variables, we apply the backward selection methodology, whereby we first fit a model including all variables and remove each time the least significant variable from the model until we are left with only statistically significant variables (see **Figure 3**). Our final model includes the variables `wt`, `qsec` and `am` with the following coefficients: 
+
+```{r, echo=FALSE}
+fit <- lm(mpg ~ wt + qsec + factor(am), data = mtcars)
+summary(fit)$coefficients
+```
+
+This model would mean that, with weight (`wt`) and quarter miles (`qsec`) remaining constant, having a manual transmission (`am` = 1) would increase the number of miles that a car is able to cover with one gallon of fuel by **`r round(summary(fit)$coefficients[4,1],2)`**. This therefore goes in the direction of the alternative hypothesis.
+
+## Diagnostics
+
+For making inferences on a slope of a linear model, we need to meet the following conditions: 
+
+* Our sample is a simple random sample from the population: For the purpose of our analysis, we need to assume that this condition is fulfilled.
+* There is a linear relationship between our outcome and our predictors in the population: We can verify this by plotting residuals vs. fitted values (see **Figure 4**), where we see that residuals are fairly spread randomly around the 0 line indicating that the relationship is linear. 
+* The variance of the responses around the population line is the same for all values of the explanatory variables: We can verify this also by plotting residuals vs. fitted values (see **Figure 4**), where we see that the residuals form an approximate horizontal band around the 0 line indicating homogeneity of variance.
+* The response varies normally around the population regression line: We can verify this with a Q-Q plot (see **Figure 5**) indicating that, with the exception of the tails, the distribution of the residuals is quite close to the normal distribution.
+
+The above conditions are approximately satisfied and we can therefore make inferences on the slopes of our linear model, especially the slope corresponding to the variable `am`.
+
+## Inference
+
+### P-value
+
+In our model, the p-value for the `am` coefficient is as follows:
+
+```{r, echo=FALSE}
+summary(fit)$coefficients[4,4]
+```
+
+The calculated p-value is lower than 0.05 and we can thus reject H<sub>0</sub>, which suggests that H<sub>a</sub> is valid.
+
+### Confidence interval
+
+We can calculate a 95% confidence interval for the coefficient of `am` as follows:
+
+```{r, echo=FALSE}
+confint(fit, "factor(am)1")
+```
+
+The calculated confidence interval does not overlap with zero and we can thus reject H<sub>0</sub>, which suggests that H<sub>a</sub> is valid.
+
+## Conclusion
+
+Our analysis suggests that there is indeed a relationship between the fuel efficiency and the type of transmission (automatic vs. manual) of cars. In our case, this relationship appears to point in the direction of manual transmissions being more fuel efficient than automatic transmissions. In order to validate this conclusion, the following next steps could be envisaged:
+
+* Outliers investigation and elimimation
+* Fitting of a new linear model after outliers elimination
+* As appropriate, test whether $\beta_{am} > 0$ instead of $\beta_{am} \neq 0$
+
+We should further note that the inferences made as part of this analysis are based on measurements from 1974 and intend by no means to extend to today's manual vs. automatic cars.
+
+## Appendix
+#### Figure 1: Absolute correlations between variables
+```{r, echo=FALSE, fig.height=3, fig.width=5}
+cormat <- abs(round(cor(mtcars),2))
+library(reshape2)
+melted_cormat <- melt(cormat)
+library(ggplot2)
+ggplot(data = melted_cormat, aes(x=Var1, y=Var2, fill=value)) + geom_tile() + scale_fill_gradient(low="white", high="red") + labs(x = "", y = "") + guides(fill=guide_legend(title=NULL))
+```
+
+#### Figure 2: Comparison of mpg values for automatic vs. manual
+```{r, echo=FALSE, fig.height=3, fig.width=4}
+ggplot(mtcars, aes(factor(am, labels = c("automatic", "manual")), mpg, fill=factor(am))) + geom_boxplot() + labs(x = "", y = "") + theme(legend.position="none")
+```
+
+#### Figure 3: Backward selection of variables
+```{r, echo=TRUE}
+# First model containing all variables
+summary(lm(mpg ~ cyl + disp + hp + drat + wt + qsec + factor(vs) + factor(am) + gear + carb, data = mtcars))$coefficients
+# After removing disp
+summary(lm(mpg ~ cyl + hp + drat + wt + qsec + factor(vs) + factor(am) + gear + carb, data = mtcars))$coefficients
+# After removing vs
+summary(lm(mpg ~ cyl + hp + drat + wt + qsec + factor(am) + gear + carb, data = mtcars))$coefficients
+# After removing cyl
+summary(lm(mpg ~ hp + drat + wt + qsec + factor(am) + gear + carb, data = mtcars))$coefficients
+# After removing gear
+summary(lm(mpg ~ hp + drat + wt + qsec + factor(am) + carb, data = mtcars))$coefficients
+# After removing hp
+summary(lm(mpg ~ drat + wt + qsec + factor(am) + carb, data = mtcars))$coefficients
+# After removing drat
+summary(lm(mpg ~ wt + qsec + factor(am) + carb, data = mtcars))$coefficients
+# After removing carb (final mode as all coefficients are now statistically significant)
+summary(lm(mpg ~ wt + qsec + factor(am), data = mtcars))$coefficients
+```
+
+#### Figure 4: Plot of residuals vs. fitted values
+```{r, echo=FALSE, fig.height=4, fig.width=4}
+plot(x=fitted(fit), y=residuals(fit), xlab="Fitted values", ylab="Residuals", main = "Residuals vs. Fitted values")
+abline(0, 0, col="red", lwd=2)  
+```
+
+#### Figure 5: Q-Q plot of residuals
+```{r, echo=FALSE, fig.height=4, fig.width=4}
+qqnorm(summary(fit)$residuals)
+qqline(summary(fit)$residuals, col = "red")
+```
